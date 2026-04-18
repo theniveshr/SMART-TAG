@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SmartTag — AI Toll Gate Monitor</title>
+  <script>
+    (function(){
+      const t = localStorage.getItem("theme")||"dark";
+      document.documentElement.setAttribute("data-theme",t);
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚦</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ══ AUTH SCREEN ═══════════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-bg"></div>
+
+  <!-- LOGIN -->
+  <div class="auth-card" id="login-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">🚦</div>
+      <div class="auth-logo-text">
+        <h1>SmartTag</h1>
+        <p>AI Toll Gate Monitor v3</p>
+      </div>
+    </div>
+    <h2 class="auth-title">Welcome back</h2>
+    <p class="auth-subtitle">Sign in to your account to continue</p>
+    <div class="auth-error" id="login-error"></div>
+    <div class="auth-form">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="login-username" placeholder="e.g. admin" autocomplete="username"/>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="auth-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+      <p class="auth-footer">Don't have an account? <span class="auth-link" onclick="showRegister()">Request Access</span></p>
+    </div>
+    <div class="auth-theme-row">
+      <span class="auth-theme-label">🎨 Theme</span>
+      <div class="auth-theme-btns">
+        <button class="theme-pill" id="theme-dark-btn" onclick="setTheme('dark')">🌙 Dark</button>
+        <button class="theme-pill" id="theme-light-btn" onclick="setTheme('light')">☀️ Light</button>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-color);font-size:11px;color:var(--text-tertiary)">
+      <strong>Demo accounts:</strong> admin / admin@123 &nbsp;|&nbsp; operator1 / op@pass123 &nbsp;|&nbsp; analyst / analysis@456
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div class="auth-card" id="register-card" style="display:none;max-width:480px">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">🚦</div>
+      <div class="auth-logo-text"><h1>SmartTag</h1><p>Create Account</p></div>
+    </div>
+    <h2 class="auth-title">Create Account</h2>
+    <p class="auth-subtitle">Fill in the details to request access</p>
+    <div class="auth-error" id="register-error"></div>
+    <div class="auth-form">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="reg-fullname" placeholder="e.g. Rajesh Kumar"/>
+      </div>
+      <div class="auth-form form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="reg-username" placeholder="e.g. rajesh_k"/>
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select id="reg-role">
+            <option value="operator">Operator</option>
+            <option value="analyst">Analyst</option>
+            <option value="viewer">Viewer</option>
+          </select>
+        </div>
+      </div>
+      <div class="auth-form form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="email@domain.com"/>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" id="reg-phone" placeholder="+91 XXXXXXXXXX"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="reg-password" placeholder="Min 6 characters" oninput="checkPwStrength(this.value)"/>
+        <div class="pw-strength"><div class="pw-strength-bar" id="pw-bar"></div></div>
+      </div>
+      <button class="auth-btn" onclick="doRegister()">Create Account</button>
+      <p class="auth-footer">Already have an account? <span class="auth-link" onclick="showLogin()">Sign In</span></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP SHELL ══════════════════════════════════════════════════════════════ -->
+<div id="app-shell">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="16" width="30" height="13" rx="3" fill="currentColor" opacity="0.9"/>
+          <rect x="13" y="7" width="10" height="11" rx="2" fill="currentColor" opacity="0.6"/>
+          <circle cx="10" cy="30" r="2.5" fill="var(--bg-surface)"/>
+          <circle cx="26" cy="30" r="2.5" fill="var(--bg-surface)"/>
+          <line x1="18" y1="2" x2="18" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="18" cy="2" r="1.8" fill="var(--danger)"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-name">SmartTag</span>
+        <span class="logo-tagline">Toll Monitor</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group-label">Monitoring</div>
+      <a href="#" class="nav-link active" data-page="dashboard">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 1116 0A8 8 0 012 10zm8-5a1 1 0 00-1 1v4l-2.5 2.5a1 1 0 001.4 1.4L10.7 12H14a1 1 0 000-2h-3V6a1 1 0 00-1-1z"/></svg>
+        Dashboard
+      </a>
+      <a href="#" class="nav-link" data-page="process" data-min-role="operator">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+        Process Vehicle
+      </a>
+      <a href="#" class="nav-link" data-page="live">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z"/></svg>
+        Live Feed
+        <span class="live-pill"><span class="pulse-dot" style="animation-duration:1s;box-shadow:none;margin-right:2px"></span>LIVE</span>
+      </a>
+
+      <div class="nav-group-label">Management</div>
+      <a href="#" class="nav-link" data-page="fraud" data-min-role="operator">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        Fraud Alerts
+        <span class="nav-badge" id="fraud-count"></span>
+      </a>
+      <a href="#" class="nav-link" data-page="transactions">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+        Transactions
+      </a>
+      <a href="#" class="nav-link" data-page="vehicles" data-min-role="operator">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M3 4a1 1 0 00-.82 1.573L3 6.76V14a1 1 0 001 1h.538a2.5 2.5 0 014.924 0h2.076a2.5 2.5 0 014.924 0H17a1 1 0 001-1V9.419a1 1 0 00-.28-.696l-3-3.143A1 1 0 0014 5.28V5a1 1 0 00-1-1H3z"/></svg>
+        Vehicles
+      </a>
+      <a href="#" class="nav-link" data-page="fastag" data-min-role="operator">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
+        FASTag
+      </a>
+      <a href="#" class="nav-link" data-page="gates">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+        Toll Gates
+      </a>
+      <a href="#" class="nav-link" data-page="notifications">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
+        Notifications
+      </a>
+
+      <div class="nav-group-label" data-admin-only>Admin</div>
+      <a href="#" class="nav-link" data-page="admin-users" data-min-role="admin" data-admin-only>
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+        Users
+      </a>
+      <a href="#" class="nav-link" data-page="profile">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+        My Profile
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="system-online">
+        <div class="online-dot"></div>
+        <span id="time-display">--:--:--</span>
+      </div>
+      <div class="sidebar-user" id="sidebar-user">
+        <div class="user-avatar" id="user-avatar-sidebar">SA</div>
+        <div class="user-meta">
+          <div class="user-name" id="user-name-sidebar">Admin</div>
+          <div class="user-role" id="user-role-sidebar">superadmin</div>
+        </div>
+        <button class="logout-btn" onclick="logout()" title="Logout">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="icon-btn hamburger" id="hamburger-btn" onclick="toggleSidebar()">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+        </button>
+        <span class="topbar-title" id="topbar-title">Dashboard</span>
+      </div>
+      <div class="topbar-right">
+        <span class="clock" id="topbar-clock"></span>
+        <div class="gate-select-wrap">
+          <span class="gate-label">Gate:</span>
+          <select class="gate-select" id="active-gate" onchange="onGateChange(this.value)">
+            <option value="1">All Gates</option>
+          </select>
+        </div>
+        <div class="status-indicator" id="status-dot" style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--success)">
+          <div style="width:7px;height:7px;border-radius:50%;background:var(--success);box-shadow:0 0 6px var(--success)"></div>
+          Online
+        </div>
+        <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme">
+          <svg viewBox="0 0 20 20" fill="currentColor" id="theme-icon"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- PAGES -->
+    <div class="content" id="content">
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <div><h2 class="page-title">Dashboard</h2><p class="page-desc">Real-time toll monitoring overview</p></div>
+          <div class="page-actions">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer">
+              <input type="checkbox" id="auto-refresh-cb" checked onchange="toggleAutoRefresh(this)"/> Auto-refresh
+            </label>
+          </div>
+        </div>
+        <div class="stat-grid" id="dash-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px">
+          <div class="stat-card"><div class="stat-icon">🚗</div><div class="stat-value" id="stat-today-total">—</div><div class="stat-label">Today's Vehicles</div></div>
+          <div class="stat-card success"><div class="stat-icon">💰</div><div class="stat-value" id="stat-today-rev">—</div><div class="stat-label">Today's Revenue</div></div>
+          <div class="stat-card danger"><div class="stat-icon">🚨</div><div class="stat-value" id="stat-today-fraud">—</div><div class="stat-label">Fraud Detected</div></div>
+          <div class="stat-card warn"><div class="stat-icon">⚠️</div><div class="stat-value" id="stat-open-alerts">—</div><div class="stat-label">Open Alerts</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px">
+          <div class="card"><div class="card-header"><div class="card-title">Weekly Traffic & Revenue</div></div><canvas id="chart-weekly" height="150"></canvas></div>
+          <div class="card"><div class="card-header"><div class="card-title">Vehicle Types</div></div><canvas id="chart-types" height="150"></canvas></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="card"><div class="card-header"><div class="card-title">Top Fraud Patterns</div></div><div id="fraud-types-list" style="padding:0 0 4px"></div></div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Recent Transactions</div><a class="card-action" href="#" onclick="navigateTo('transactions')">View all →</a></div>
+            <div class="table-wrap"><table class="table" id="dash-transactions"><thead><tr><th>Time</th><th>Plate</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROCESS VEHICLE -->
+      <div class="page" id="page-process">
+        <div class="page-header">
+          <div><h2 class="page-title">Process Vehicle</h2><p class="page-desc">OCR plate recognition + AI fraud detection</p></div>
+        </div>
+        <div class="process-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <!-- Input Panel -->
+          <div>
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-header"><div class="card-title">📷 Media Input</div></div>
+              <div class="media-upload-tabs">
+                <button class="media-tab active" onclick="switchMediaTab('image',this)">📷 Image</button>
+                <button class="media-tab" onclick="switchMediaTab('video',this)">🎥 Video</button>
+              </div>
+              <!-- Image tab -->
+              <div id="media-tab-image">
+                <div class="media-drop-zone" id="img-dropzone" onclick="document.getElementById('image-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event,'image')">
+                  <div class="media-drop-icon">📷</div>
+                  <div class="media-drop-text">Drop image here or click to upload</div>
+                  <div class="media-drop-sub">JPG, PNG, WEBP supported</div>
+                  <input type="file" id="image-input" accept="image/*" style="display:none" onchange="previewMedia(event,'image')"/>
+                </div>
+                <div class="media-preview-wrap" id="img-preview-wrap">
+                  <img id="image-preview" alt="Preview"/>
+                  <button class="media-remove-btn" onclick="clearMedia('image')">✕</button>
+                </div>
+              </div>
+              <!-- Video tab -->
+              <div id="media-tab-video" style="display:none">
+                <div class="media-drop-zone" id="vid-dropzone" onclick="document.getElementById('video-input').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event,'video')">
+                  <div class="media-drop-icon">🎥</div>
+                  <div class="media-drop-text">Drop video here or click to upload</div>
+                  <div class="media-drop-sub">MP4, AVI, MOV supported — best frame extracted automatically</div>
+                  <input type="file" id="video-input" accept="video/*" style="display:none" onchange="previewMedia(event,'video')"/>
+                </div>
+                <div class="media-preview-wrap" id="vid-preview-wrap">
+                  <video id="video-preview" controls></video>
+                  <button class="media-remove-btn" onclick="clearMedia('video')">✕</button>
+                </div>
+              </div>
+              <button class="btn btn-outline" style="margin-top:10px;width:100%" onclick="captureCamera()">📸 Use Camera</button>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div class="card-title">⚙️ Manual Override</div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                <div class="form-group"><label>Plate Number</label><input type="text" id="manual-plate" placeholder="e.g. TN09AB1234" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px;width:100%;font-family:var(--mono)"/></div>
+                <div class="form-group"><label>Vehicle Type</label>
+                  <select id="manual-type" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px;width:100%;font-family:var(--sans)">
+                    <option value="">Auto-detect</option>
+                    <option value="car">Car</option><option value="truck">Truck</option>
+                    <option value="bus">Bus</option><option value="bike">Bike</option><option value="van">Van</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom:12px"><label>Toll Gate</label>
+                <select id="process-gate" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px;width:100%;font-family:var(--sans)"></select>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" id="process-btn" onclick="processVehicle()" style="flex:1">⚡ Process Vehicle</button>
+                <button class="btn btn-outline" id="simulate-btn" onclick="simulateLive()">🎲 Simulate</button>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+                <span style="font-size:11px;color:var(--text-tertiary)">Quick demo:</span>
+                <button class="chip" onclick="demoPlate('TN09AB1234','car')">TN09AB1234</button>
+                <button class="chip" onclick="demoPlate('TN22KL2345','van')">Blacklisted</button>
+                <button class="chip" onclick="demoPlate('MH04XX1111','car')">Unknown</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Result Panel -->
+          <div>
+            <div class="card" id="idle-card" style="text-align:center;padding:50px 20px">
+              <div style="font-size:48px;margin-bottom:16px;opacity:0.3">🚗</div>
+              <div style="font-size:16px;font-weight:600;color:var(--text-secondary)">Awaiting vehicle</div>
+              <div style="font-size:13px;color:var(--text-tertiary);margin-top:6px">Upload an image, video, or enter a plate number to begin processing</div>
+            </div>
+            <div id="result-card" style="display:none">
+              <!-- Gate Animation -->
+              <div class="card" style="margin-bottom:16px">
+                <div class="gate-scene" id="gate-anim">
+                  <div class="gate-road">
+                    <div class="gate-posts">
+                      <div class="gate-post"></div>
+                      <div class="gate-arm" id="gate-bar"></div>
+                      <div class="gate-post"></div>
+                    </div>
+                    <div class="gate-vehicle" id="gate-icon-car">🚗</div>
+                  </div>
+                  <div class="gate-badge" id="gate-status-badge">—</div>
+                </div>
+                <div style="text-align:center;margin-top:10px">
+                  <div class="mono" id="result-plate" style="font-size:22px;font-weight:700;letter-spacing:2px">—</div>
+                  <div id="result-ocr-conf" style="font-size:11px;color:var(--text-tertiary);margin-top:4px"></div>
+                  <div id="result-txn" style="font-size:11px;color:var(--text-tertiary);margin-top:2px"></div>
+                </div>
+              </div>
+              <!-- Info Grid -->
+              <div class="card" style="margin-bottom:16px"><div id="result-grid" class="rg-grid"></div></div>
+              <!-- Fraud Meter -->
+              <div class="card" style="margin-bottom:16px">
+                <div class="card-header">
+                  <div class="card-title">🛡️ Fraud Analysis</div>
+                  <div id="fraud-severity" style="font-size:12px;font-weight:700;color:var(--accent)">Severity: LOW</div>
+                </div>
+                <div style="background:var(--bg-elevated);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">
+                  <div id="fraud-meter-fill" style="height:100%;width:0%;transition:width 0.8s ease;border-radius:4px"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                  <span style="font-size:12px;color:var(--text-secondary)">Fraud Score</span>
+                  <span id="fraud-score-pct" class="mono" style="font-size:18px;font-weight:700">0%</span>
+                </div>
+                <div id="fraud-details-list"></div>
+              </div>
+              <!-- Actions -->
+              <div class="card"><div id="result-actions"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIVE FEED -->
+      <div class="page" id="page-live">
+        <div class="page-header">
+          <div><h2 class="page-title">Live Feed</h2><p class="page-desc" id="live-count">—</p></div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>Transaction ID</th><th>Plate</th><th>Gate</th><th>Type</th><th>Amount</th><th>Balance</th><th>Status</th><th>Fraud%</th><th>Time</th></tr></thead>
+              <tbody id="live-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- FRAUD ALERTS -->
+      <div class="page" id="page-fraud">
+        <div class="page-header">
+          <div><h2 class="page-title">Fraud Alerts</h2><p class="page-desc">AI-detected fraud incidents</p></div>
+          <div class="page-actions">
+            <select class="filter-select" id="alert-severity" onchange="loadAlerts()"><option value="">All Severity</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <select class="filter-select" id="alert-resolved" onchange="loadAlerts()"><option value="">All Status</option><option value="false">Unresolved</option><option value="true">Resolved</option></select>
+          </div>
+        </div>
+        <div class="alerts-grid" id="alerts-grid"></div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div class="page" id="page-transactions">
+        <div class="page-header">
+          <div><h2 class="page-title">Transactions</h2><p class="page-desc">Complete toll transaction log</p></div>
+          <div class="page-actions">
+            <a class="btn-export" href="#" onclick="exportToPDF('transactions')">⬇ Export PDF</a>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input type="text" id="tx-plate-search" placeholder="Search plate..." class="filter-input" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px"/>
+            <select class="filter-select" id="tx-status"><option value="">All Status</option><option value="success">Success</option><option value="fraud">Fraud</option><option value="failed">Failed</option></select>
+            <input type="date" id="tx-date-from" class="filter-input" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px"/>
+            <input type="date" id="tx-date-to" class="filter-input" style="background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px"/>
+            <button class="btn btn-primary" onclick="loadTransactions(1)">Filter</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table"><thead><tr><th>Txn ID</th><th>Plate</th><th>FASTag</th><th>Gate</th><th>Type</th><th>Amount</th><th>Balance</th><th>Status</th><th>Fraud%</th><th>Time</th></tr></thead><tbody id="tx-tbody"></tbody></table>
+          </div>
+          <div id="tx-pagination" style="display:flex;gap:6px;padding:16px 0 0;justify-content:center"></div>
+        </div>
+      </div>
+
+      <!-- VEHICLES -->
+      <div class="page" id="page-vehicles">
+        <div class="page-header">
+          <div><h2 class="page-title">Vehicle Registry</h2><p class="page-desc">Registered vehicles & blacklist management</p></div>
+          <div class="page-actions">
+            <a class="btn-export" href="#" onclick="exportToPDF('vehicles')">⬇ Export PDF</a>
+            <button class="btn btn-primary" onclick="showModal('modal-add-vehicle')" id="add-vehicle-btn">+ Add Vehicle</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;gap:10px">
+            <input type="text" id="veh-search" placeholder="Search plate or owner..." class="filter-input" style="flex:1;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px"/>
+            <select class="filter-select" id="veh-blacklist"><option value="">All Vehicles</option><option value="true">Blacklisted</option></select>
+            <button class="btn btn-primary" onclick="loadVehicles()">Search</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table"><thead><tr><th>Plate</th><th>Owner</th><th>Phone</th><th>Type</th><th>Fuel</th><th>State</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead><tbody id="veh-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- FASTAG -->
+      <div class="page" id="page-fastag">
+        <div class="page-header">
+          <div><h2 class="page-title">FASTag Management</h2><p class="page-desc">FASTag accounts and balances</p></div>
+          <div class="page-actions">
+            <a class="btn-export" href="#" onclick="exportToPDF('fastag')">⬇ Export PDF</a>
+            <button class="btn btn-primary" onclick="showModal('modal-add-fastag')">+ Add FASTag</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;gap:10px">
+            <input type="text" id="ft-search" placeholder="Search by ID, plate or owner..." class="filter-input" style="flex:1;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);padding:8px 12px;font-size:13px"/>
+            <button class="btn btn-primary" onclick="loadFASTag()">Search</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table"><thead><tr><th>FASTag ID</th><th>Plate</th><th>Owner</th><th>Bank</th><th>Balance</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody id="ft-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOLL GATES -->
+      <div class="page" id="page-gates">
+        <div class="page-header"><div><h2 class="page-title">Toll Gates</h2><p class="page-desc">Gate locations and toll rates</p></div></div>
+        <div class="gates-grid" id="gates-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px"></div>
+      </div>
+
+      <!-- NOTIFICATIONS -->
+      <div class="page" id="page-notifications">
+        <div class="page-header"><div><h2 class="page-title">Notifications</h2><p class="page-desc">SMS and admin alert log</p></div></div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table"><thead><tr><th>Phone</th><th>Type</th><th>Message</th><th>Status</th><th>Time</th></tr></thead><tbody id="notif-tbody"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN USERS -->
+      <div class="page" id="page-admin-users">
+        <div class="page-header">
+          <div><h2 class="page-title">User Management</h2><p class="page-desc">Manage system users and access roles</p></div>
+          <div class="page-actions">
+            <a class="btn-export" href="#" onclick="exportToPDF('users')">⬇ Export PDF</a>
+            <button class="btn btn-primary" onclick="showModal('modal-add-user')">+ Add User</button>
+          </div>
+        </div>
+        <div id="admin-users-grid" class="users-grid"></div>
+      </div>
+
+      <!-- PROFILE -->
+      <div class="page" id="page-profile">
+        <div class="page-header"><div><h2 class="page-title">My Profile</h2><p class="page-desc">Manage your account details</p></div></div>
+        <div class="profile-layout">
+          <div class="profile-card">
+            <div class="profile-avatar-lg" id="profile-avatar">SA</div>
+            <div class="profile-name" id="profile-fullname">—</div>
+            <div class="profile-username" id="profile-username">@—</div>
+            <div class="profile-role-badge" id="profile-role-badge">—</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px" id="profile-email">—</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px" id="profile-phone">—</div>
+            <div style="font-size:11px;color:var(--text-tertiary)" id="profile-last-login">—</div>
+            <div class="profile-stats-mini" id="profile-stats-mini"></div>
+          </div>
+          <div>
+            <div class="profile-form-card" style="margin-bottom:16px">
+              <h3>✏️ Edit Profile</h3>
+              <div class="form-grid-2">
+                <div class="form-group"><label>Full Name</label><input type="text" id="pf-fullname"/></div>
+                <div class="form-group"><label>Email</label><input type="email" id="pf-email"/></div>
+              </div>
+              <div class="form-grid-2">
+                <div class="form-group"><label>Phone</label><input type="text" id="pf-phone"/></div>
+                <div class="form-group"><label>Role</label><input type="text" id="pf-role" readonly style="opacity:0.6;cursor:not-allowed"/></div>
+              </div>
+              <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+            </div>
+            <div class="profile-form-card">
+              <h3>🔑 Change Password</h3>
+              <div class="form-group" style="margin-bottom:12px"><label>New Password</label><input type="password" id="pf-newpw" placeholder="Min 6 characters"/></div>
+              <div class="form-group" style="margin-bottom:12px"><label>Confirm Password</label><input type="password" id="pf-confirmpw" placeholder="Repeat password"/></div>
+              <button class="btn btn-outline" onclick="changePassword()">Update Password</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app-shell -->
+
+<!-- ══ MODALS ═════════════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModal()">
+  <!-- Add Vehicle -->
+  <div class="modal" id="modal-add-vehicle" onclick="event.stopPropagation()">
+    <h3>➕ Register Vehicle</h3>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group"><label>Plate Number *</label><input type="text" id="av-plate" placeholder="TN09AB1234"/></div>
+        <div class="form-group"><label>Owner Name *</label><input type="text" id="av-name" placeholder="Full name"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Phone</label><input type="text" id="av-phone" placeholder="+91..."/></div>
+        <div class="form-group"><label>Email</label><input type="email" id="av-email"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Vehicle Type</label><select id="av-type"><option value="car">Car</option><option value="truck">Truck</option><option value="bus">Bus</option><option value="bike">Bike</option><option value="van">Van</option></select></div>
+        <div class="form-group"><label>Fuel Type</label><select id="av-fuel"><option value="">Unknown</option><option value="Petrol">Petrol</option><option value="Diesel">Diesel</option><option value="CNG">CNG</option><option value="Electric">Electric</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddVehicle()">Register</button>
+    </div>
+  </div>
+
+  <!-- Edit Vehicle -->
+  <div class="modal" id="modal-edit-vehicle" onclick="event.stopPropagation()">
+    <h3>✏️ Edit Vehicle</h3>
+    <input type="hidden" id="edit-veh-plate"/>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group"><label>Owner Name</label><input type="text" id="edit-veh-name"/></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="edit-veh-phone"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Vehicle Type</label><select id="edit-veh-type"><option value="car">Car</option><option value="truck">Truck</option><option value="bus">Bus</option><option value="bike">Bike</option><option value="van">Van</option></select></div>
+        <div class="form-group"><label>Fuel Type</label><select id="edit-veh-fuel"><option value="">Unknown</option><option value="Petrol">Petrol</option><option value="Diesel">Diesel</option><option value="CNG">CNG</option><option value="Electric">Electric</option></select></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doEditVehicle()">Save</button>
+    </div>
+  </div>
+
+  <!-- Add FASTag -->
+  <div class="modal" id="modal-add-fastag" onclick="event.stopPropagation()">
+    <h3>➕ Add FASTag</h3>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group"><label>FASTag ID *</label><input type="text" id="ft-id" placeholder="FT-XXXXXXXXX"/></div>
+        <div class="form-group"><label>Plate Number *</label><input type="text" id="ft-plate" placeholder="TN09AB1234"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Bank *</label><input type="text" id="ft-bank" placeholder="HDFC Bank"/></div>
+        <div class="form-group"><label>Initial Balance (₹)</label><input type="number" id="ft-balance" value="500" min="0"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Vehicle Type</label><select id="ft-type"><option value="car">Car</option><option value="truck">Truck</option><option value="bus">Bus</option><option value="bike">Bike</option><option value="van">Van</option></select></div>
+        <div class="form-group"><label>Owner Name</label><input type="text" id="ft-owner"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddFASTag()">Add FASTag</button>
+    </div>
+  </div>
+
+  <!-- Top Up -->
+  <div class="modal" id="modal-topup" onclick="event.stopPropagation()">
+    <h3>💳 Top Up FASTag</h3>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:12px"><label>FASTag ID</label><input type="text" id="topup-id"/></div>
+      <div class="form-group"><label>Amount (₹)</label><input type="number" id="topup-amount" value="500" min="1"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doTopUp()">Top Up</button>
+    </div>
+  </div>
+
+  <!-- Add User -->
+  <div class="modal" id="modal-add-user" onclick="event.stopPropagation()">
+    <h3>👤 Add User</h3>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group"><label>Full Name *</label><input type="text" id="au-fullname"/></div>
+        <div class="form-group"><label>Username *</label><input type="text" id="au-username"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Email</label><input type="email" id="au-email"/></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="au-phone"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Role</label>
+          <select id="au-role">
+            <option value="operator">Operator</option>
+            <option value="analyst">Analyst</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+            <option value="superadmin">Superadmin</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Password *</label><input type="password" id="au-password" placeholder="Min 6 chars"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doAddUser()">Create User</button>
+    </div>
+  </div>
+
+  <!-- Edit User -->
+  <div class="modal" id="modal-edit-user" onclick="event.stopPropagation()">
+    <h3>✏️ Edit User</h3>
+    <input type="hidden" id="edit-user-id"/>
+    <div class="modal-body">
+      <div class="form-grid-2">
+        <div class="form-group"><label>Full Name</label><input type="text" id="eu-fullname"/></div>
+        <div class="form-group"><label>Email</label><input type="email" id="eu-email"/></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Phone</label><input type="text" id="eu-phone"/></div>
+        <div class="form-group"><label>Role</label>
+          <select id="eu-role">
+            <option value="operator">Operator</option>
+            <option value="analyst">Analyst</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+            <option value="superadmin">Superadmin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group"><label>Status</label>
+          <select id="eu-active"><option value="1">Active</option><option value="0">Inactive</option></select>
+        </div>
+        <div class="form-group"><label>New Password (optional)</label><input type="password" id="eu-password" placeholder="Leave blank to keep"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doEditUser()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ═══════════════════════════════════════════════════════════════════ -->
+<div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

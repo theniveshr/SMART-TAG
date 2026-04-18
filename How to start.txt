@@ -1,0 +1,46 @@
+SmartTag — AI Toll Gate Monitor v3
+===================================
+
+QUICK START:
+
+python -m venv venv
+
+venv\Scripts\activate
+
+python -m pip install --upgrade pip
+
+1. Install dependencies:
+   pip install -r requirements.txt
+
+2. Start the server:
+   python run.py
+
+   OR from backend directory:
+   uvicorn app.main:app --reload --port 8000
+
+3. Open browser: http://localhost:8000
+
+LOGIN CREDENTIALS:
+  superadmin : admin / admin@123
+  operator   : operator1 / op@pass123
+  analyst    : analyst / analysis@456
+  viewer     : viewer / view@789
+
+ROLES & ACCESS:
+  superadmin - Full access, can manage all users
+  admin      - Can manage users, vehicles, fastag, all reports
+  analyst    - Can view all data, resolve fraud alerts
+  operator   - Can process vehicles, manage vehicles/fastag, view transactions
+  viewer     - Read-only access to dashboard and transactions
+
+NEW FEATURES v3:
+  ✅ Login/Register with role-based access control
+  ✅ Theme toggle (dark/light) on login page — persists everywhere
+  ✅ Upload image OR video for OCR processing
+  ✅ Admin user management (CRUD)
+  ✅ Vehicle CRUD (edit/delete)
+  ✅ FASTag CRUD (add/delete)
+  ✅ PDF export for Transactions, Vehicles, FASTag, Users
+  ✅ Profile page for every user
+  ✅ Responsive sidebar (mobile hamburger menu)
+  ✅ Separated JS into frontend/js/app.js
